@@ -1,7 +1,9 @@
 // OpenTodo desktop shell: serves the built app (dist/) from app://todo-plus
 // so the data (localStorage) always lives under the same, fixed origin.
 // Closing the window keeps the app running in the tray so reminders still fire.
-const { app, BrowserWindow, Menu, Notification, Tray, ipcMain, protocol, net, shell, session } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, protocol, net, shell, session } = require('electron');
+const { spawn } = require('node:child_process');
+const { isNewer } = require('./version.cjs');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -117,6 +119,7 @@ function buildTrayMenu() {
           buildTrayMenu();
         },
       },
+      { label: L('Check for updates', 'Güncellemeleri denetle'), enabled: app.isPackaged, click: () => checkForUpdate(true) },
       { type: 'separator' },
       { label: L('Quit', 'Çık'), click: () => app.quit() },
     ])
@@ -128,6 +131,80 @@ function createTray() {
   tray.setToolTip('OpenTodo');
   tray.on('click', showWindow);
   buildTrayMenu();
+}
+
+// ---- Updates: compare with the latest GitHub release, download the installer and run it ----
+const RELEASES_API = 'https://api.github.com/repos/eryukselaskar/opentodo/releases/latest';
+let updateBusy = false;
+
+async function installUpdate(version, url) {
+  const file = path.join(app.getPath('temp'), `OpenTodo-Setup-${version}.exe`);
+  const res = await net.fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+  // The one-click installer replaces this version and starts the new one; data stays in %APPDATA%\todo-plus
+  spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+  quitting = true;
+  app.quit();
+}
+
+async function askToInstall(version, url) {
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    title: 'OpenTodo',
+    message: L(`OpenTodo ${version} is available`, `OpenTodo ${version} çıktı`),
+    detail: L(
+      `You have ${app.getVersion()}. The update downloads and installs in a minute; your tasks stay where they are.`,
+      `Sizdeki sürüm ${app.getVersion()}. Güncelleme bir dakikada inip kurulur; görevleriniz yerinde kalır.`
+    ),
+    buttons: [L('Install now', 'Şimdi kur'), L('Later', 'Sonra'), L('Skip this version', 'Bu sürümü atla')],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 2) writeSettings({ skippedVersion: version });
+  if (response !== 0) return;
+  try {
+    await installUpdate(version, url);
+  } catch {
+    dialog.showErrorBox('OpenTodo', L('The update could not be downloaded. Try again later.', 'Güncelleme indirilemedi. Daha sonra tekrar deneyin.'));
+  }
+}
+
+/** manual = from the tray menu: also report "up to date" and errors */
+async function checkForUpdate(manual = false) {
+  if (!app.isPackaged || updateBusy) return;
+  updateBusy = true;
+  try {
+    const res = await net.fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'OpenTodo' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const release = await res.json();
+    const version = String(release.tag_name || '').replace(/^v/i, '');
+    const asset = (release.assets || []).find((a) => /\.exe$/i.test(a.name));
+    if (!asset || !isNewer(version, app.getVersion())) {
+      if (manual) dialog.showMessageBox({ type: 'info', title: 'OpenTodo', message: L('OpenTodo is up to date.', 'OpenTodo güncel.') });
+      return;
+    }
+    if (!manual && readSettings().skippedVersion === version) return;
+    if (manual || (win && win.isVisible())) {
+      await askToInstall(version, asset.browser_download_url);
+    } else {
+      // Running in the tray: a notification, the question comes when it is clicked
+      const n = new Notification({
+        title: L(`OpenTodo ${version} is available`, `OpenTodo ${version} çıktı`),
+        body: L('Click to update.', 'Güncellemek için tıklayın.'),
+        icon: ICON,
+      });
+      n.on('click', () => {
+        showWindow();
+        askToInstall(version, asset.browser_download_url);
+      });
+      n.show();
+    }
+  } catch {
+    if (manual) dialog.showErrorBox('OpenTodo', L('Could not check for updates.', 'Güncellemeler denetlenemedi.'));
+  } finally {
+    updateBusy = false;
+  }
 }
 
 /** /ollama/* goes to the local Ollama server (same path the dev server proxies) */
@@ -172,7 +249,11 @@ app.whenReady().then(() => {
 
   createWindow();
   createTray();
+
+  // Look for a new version shortly after start, then every 6 hours
+  setTimeout(() => checkForUpdate(false), 15000);
+  setInterval(() => checkForUpdate(false), 6 * 60 * 60 * 1000);
 });
 
-// The tray keeps the app alive; quitting happens only via "Çık"
+// The tray keeps the app alive; quitting happens only via "Quit"
 app.on('window-all-closed', () => {});

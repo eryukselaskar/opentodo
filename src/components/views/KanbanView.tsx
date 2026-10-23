@@ -33,6 +33,7 @@ import {
   Search,
 } from 'lucide-react';
 import { t as tt } from '../../lib/i18n';
+import { dedupeRoutines } from '../../lib/kanban';
 
 type HorizonFilter = 'all' | TaskHorizon;
 
@@ -131,20 +132,28 @@ export function KanbanView() {
 
   // Horizon candidate task sets
   const todayTasks = React.useMemo(() => getTasksForDate(tasks, todayKey), [tasks, todayKey]);
+  // Routines are kept as several records; every list shows each routine once
+  const allTasks = React.useMemo(() => dedupeRoutines(tasks, todayTasks), [tasks, todayTasks]);
   const weekTasks = React.useMemo(() => {
-    return tasks.filter(
-      (t) =>
-        t.weekKey === currentWeekKey ||
-        (t.horizon === 'week' && (!t.weekKey || t.weekKey === currentWeekKey))
+    return dedupeRoutines(
+      tasks.filter(
+        (t) =>
+          t.weekKey === currentWeekKey ||
+          (t.horizon === 'week' && (!t.weekKey || t.weekKey === currentWeekKey))
+      ),
+      todayTasks
     );
-  }, [tasks, currentWeekKey]);
+  }, [tasks, currentWeekKey, todayTasks]);
   const monthTasks = React.useMemo(() => {
-    return tasks.filter(
-      (t) =>
-        t.monthKey === currentMonthKey ||
-        (t.horizon === 'month' && (!t.monthKey || t.monthKey === currentMonthKey))
+    return dedupeRoutines(
+      tasks.filter(
+        (t) =>
+          t.monthKey === currentMonthKey ||
+          (t.horizon === 'month' && (!t.monthKey || t.monthKey === currentMonthKey))
+      ),
+      todayTasks
     );
-  }, [tasks, currentMonthKey]);
+  }, [tasks, currentMonthKey, todayTasks]);
   const backlogTasks = React.useMemo(() => {
     return tasks.filter((t) => t.horizon === 'backlog');
   }, [tasks]);
@@ -152,17 +161,17 @@ export function KanbanView() {
   // Counts for Horizon filter buttons
   const horizonCounts = React.useMemo(() => {
     return {
-      all: tasks.length,
+      all: allTasks.length,
       day: todayTasks.length,
       week: weekTasks.length,
       month: monthTasks.length,
       backlog: backlogTasks.length,
     };
-  }, [tasks.length, todayTasks.length, weekTasks.length, monthTasks.length, backlogTasks.length]);
+  }, [allTasks.length, todayTasks.length, weekTasks.length, monthTasks.length, backlogTasks.length]);
 
   // Filter tasks based on selected horizon and search/tag/priority filters
   const filteredTasks = React.useMemo(() => {
-    let list: Task[] = tasks;
+    let list: Task[] = allTasks;
     if (horizonFilter === 'day') {
       list = todayTasks;
     } else if (horizonFilter === 'week') {
@@ -177,7 +186,7 @@ export function KanbanView() {
       matchesTaskFilters(task, { searchQuery, selectedTagFilter, selectedPriorityFilter })
     );
   }, [
-    tasks,
+    allTasks,
     horizonFilter,
     todayTasks,
     weekTasks,

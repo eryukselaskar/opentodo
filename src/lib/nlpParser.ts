@@ -29,7 +29,19 @@ const HORIZON_TOKEN_REGEX =
 
 /** Health / medication words; word-bounded so e.g. "kitap" does not match "hap". */
 const HEALTH_REGEX =
-  /(?<!\p{L})(?:ila[çc]|magnezyum|vitamin|takviye|hap(?:ı|lar[ıi]?)?(?!\p{L})|re[çc]ete)/iu;
+  /(?<!\p{L})(?:ila[çc]|magnezyum|vitamin|takviye|hap(?:ı|lar[ıi]?)?(?!\p{L})|re[çc]ete|medicine|medication|pills?(?!\p{L})|supplements?|prescription)/iu;
+
+/** English weekday names → ISO day (1 = Monday … 7 = Sunday) */
+const EN_DAYS: [RegExp, number][] = [
+  [/\bmondays?\b/i, 1],
+  [/\btuesdays?\b/i, 2],
+  [/\bwednesdays?\b/i, 3],
+  [/\bthursdays?\b/i, 4],
+  [/\bfridays?\b/i, 5],
+  [/\bsaturdays?\b/i, 6],
+  [/\bsundays?\b/i, 7],
+];
+const EN_PLURAL_DAY = /\b(?:mon|tues|wednes|thurs|fri|satur|sun)days\b/i;
 
 /** True when the text contains a full @horizon token (@yarın, @buhafta, @2026-10-25 ...). */
 export function hasExplicitHorizonToken(raw: string): boolean {
@@ -135,14 +147,48 @@ export function parseQuickTaskInput(
     recurrence = 'daily';
   }
 
+  // English: "every day", "every weekday", "every Monday and Thursday", "on Tuesdays"
+  if (recurrence === 'none') {
+    const enDays = EN_DAYS.filter(([re]) => re.test(lowerText)).map(([, d]) => d);
+    if (/\b(?:every|on)\s+weekdays?\b/i.test(lowerText)) {
+      recurrence = 'custom_days';
+      recurrenceDays = [1, 2, 3, 4, 5];
+    } else if (/\b(?:every|on)\s+weekends?\b/i.test(lowerText)) {
+      recurrence = 'custom_days';
+      recurrenceDays = [6, 7];
+    } else if (enDays.length > 0 && (/\bevery\b/i.test(lowerText) || EN_PLURAL_DAY.test(lowerText))) {
+      recurrence = 'custom_days';
+      recurrenceDays = enDays;
+    } else if (
+      /\bevery\s*(?:day|morning|evening|night)\b|\beach\s+day\b/i.test(lowerText) ||
+      (isHealthRoutine && /\bdaily\b/i.test(lowerText))
+    ) {
+      recurrence = 'daily';
+    }
+  }
+
+  // 4a. English time with am / pm: "at 7pm", "8:30 pm", "7am"
+  let scheduledTime: string | null = null;
+  const ampmRegex = /(?:^|\s)(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?=\s|$|[.,!?])/i;
+  const ampm = text.match(ampmRegex);
+  if (ampm) {
+    let h = Number(ampm[1]);
+    const m = Number(ampm[2] ?? '0');
+    if (h >= 1 && h <= 12 && m < 60) {
+      if (ampm[3].toLowerCase() === 'pm' && h !== 12) h += 12;
+      if (ampm[3].toLowerCase() === 'am' && h === 12) h = 0;
+      scheduledTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      text = text.replace(ampm[0], ' ');
+    }
+  }
+
   // 4b. Explicit time: "14:30", "12:00 - 12:30", "saat 9.15". A dot is only accepted
   // after "saat" so values like "Sürüm 2.10" are left alone.
-  let scheduledTime: string | null = null;
   const isValidTime = (h: string, m: string) => Number(h) < 24 && Number(m) < 60;
   const pad2 = (v: string) => String(parseInt(v, 10)).padStart(2, '0');
   const timeRegex =
-    /(?:^|\s)(saat\s*)?(\d{1,2})([:.])(\d{2})(?:\s*[-–—]\s*(\d{1,2})[:.](\d{2}))?(?=\s|$)/giu;
-  for (const m of text.matchAll(timeRegex)) {
+    /(?:^|\s)(saat\s*|at\s+)?(\d{1,2})([:.])(\d{2})(?:\s*[-–—]\s*(\d{1,2})[:.](\d{2}))?(?=\s|$)/giu;
+  for (const m of scheduledTime ? [] : text.matchAll(timeRegex)) {
     const [whole, saatPrefix, sh, sep, sm, eh, em] = m;
     if ((sep !== ':' && !saatPrefix) || !isValidTime(sh, sm)) continue;
     const hasEnd = eh !== undefined && em !== undefined && isValidTime(eh, em);
@@ -157,11 +203,11 @@ export function parseQuickTaskInput(
   // so "Akşam yemeği hazırla" does not get a 22:00 slot.
   const isRoutineContext = recurrence !== 'none' || isHealthRoutine;
   if (!scheduledTime && isRoutineContext) {
-    if (/(?:kahvalt[ıi]\s*sonras[ıi]|kahvalt[ıi]dan\s*sonra|öğle|ogle)/iu.test(lowerText)) {
+    if (/(?:kahvalt[ıi]\s*sonras[ıi]|kahvalt[ıi]dan\s*sonra|öğle|ogle|after\s+breakfast|\blunch\b|\bnoon\b)/iu.test(lowerText)) {
       scheduledTime = '12:00';
-    } else if (/(?:ak[şs]am|gece|yatmadan\s*önce)/iu.test(lowerText)) {
+    } else if (/(?:ak[şs]am|gece|yatmadan\s*önce|\bevening\b|\btonight\b|\bnight\b|before\s+bed)/iu.test(lowerText)) {
       scheduledTime = '22:00';
-    } else if (/(?:sabah)/iu.test(lowerText)) {
+    } else if (/(?:sabah|\bmorning\b)/iu.test(lowerText)) {
       scheduledTime = '10:00';
     }
   }

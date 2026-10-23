@@ -1,6 +1,7 @@
 import { TaskHorizon, TaskPriority, RecurrencePattern } from '../types/todo';
 import { getLang, t, t as tr2 } from './i18n';
 import { getNames } from './dateUtils';
+import { parseQuickTaskInput } from './nlpParser';
 
 /** Extra system-prompt line so model-written text matches the UI language */
 function languageRule(): string {
@@ -442,6 +443,8 @@ function buildUpcomingDaysMap(
     const key = `${yyyy}-${mm}-${dd}`;
     const name = dayNames[dt.getDay()];
     const lowerName = name.toLowerCase();
+    const enName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dt.getDay()];
+    if (!wdMap[enName]) wdMap[enName] = key;
     if (!wdMap[lowerName]) {
       wdMap[lowerName] = key;
     }
@@ -586,13 +589,15 @@ export async function parseSmartDumpWithAI(
   // Smart local fallback in case Ollama is offline
   const buildSmartFallback = () => {
     // Keep "pazartesi ve perşembe" together so it is not split into two tasks
-    const DAY_WORDS = '(pazartesi|salı|sali|çarşamba|carsamba|perşembe|persembe|cumartesi|cuma|pazar)';
+    const DAY_WORDS =
+      '(pazartesi|salı|sali|çarşamba|carsamba|perşembe|persembe|cumartesi|cuma|pazar|mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?)';
+    // Keep "Monday and Thursday" / "pazartesi ve perşembe" together so it is not split into two tasks
     const protectedText = rawText.replace(
-      new RegExp(`${DAY_WORDS}\\s+ve\\s+(?=${DAY_WORDS})`, 'giu'),
-      '$1 & '
+      new RegExp(`${DAY_WORDS}\\s+(ve|and)\\s+(?=${DAY_WORDS})`, 'giu'),
+      (_m, day: string, conj: string) => `${day} ${conj.toLowerCase() === 'and' ? '&&' : '&'} `
     );
     const lines = protectedText
-      .split(/\n|;|(?:\s+ve\s+)|(?:,\s*(?=[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]))/)
+      .split(/\n|;|(?:\s+ve\s+)|(?:\s+and\s+)|(?:,\s*(?=[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]))/i)
       .map((l) => l.trim().replace(/^[-*•]\s*/, ''))
       .filter(Boolean);
 
@@ -631,26 +636,34 @@ export async function parseSmartDumpWithAI(
       }
 
       if (!matchedWeekday) {
-        if (lower.includes('yarın')) {
+        if (lower.includes('yarın') || /\btomorrow\b/.test(lower)) {
           horizon = 'day';
           scheduledDate = context.tomorrowKey;
-        } else if (lower.includes('bu ay') || lower.includes('aylık')) {
+        } else if (lower.includes('bu ay') || lower.includes('aylık') || /\b(?:this month|monthly)\b/.test(lower)) {
           horizon = 'month';
           scheduledDate = null;
-        } else if (lower.includes('bu hafta') || lower.includes('haftaya') || lower.includes('haftalık')) {
+        } else if (
+          lower.includes('bu hafta') ||
+          lower.includes('haftaya') ||
+          lower.includes('haftalık') ||
+          /\b(?:this week|next week|weekly)\b/.test(lower)
+        ) {
           horizon = 'week';
           scheduledDate = null;
         }
       }
 
       // Check time hints
-      if (lower.includes('kahvaltı') || lower.includes('öğle') || lower.includes('ogle')) {
+      if (lower.includes('kahvaltı') || lower.includes('öğle') || lower.includes('ogle') || /\b(?:breakfast|lunch|noon)\b/.test(lower)) {
         scheduledTime = '12:00';
-      } else if (lower.includes('akşam') || lower.includes('aksam') || lower.includes('gece')) {
+      } else if (lower.includes('akşam') || lower.includes('aksam') || lower.includes('gece') || /\b(?:evening|tonight|night)\b/.test(lower)) {
         scheduledTime = '22:00';
-      } else if (lower.includes('sabah')) {
+      } else if (lower.includes('sabah') || /\bmorning\b/.test(lower)) {
         scheduledTime = '10:00';
       }
+      // Same rules as quick add for explicit times ("7pm", "14:30") and routines ("every day", "on Mondays")
+      const quick = parseQuickTaskInput(line.replace(/ &&? /g, ' and '));
+      if (quick.scheduledTime) scheduledTime = quick.scheduledTime;
 
       // Check recurrence hints
       if (
@@ -662,20 +675,25 @@ export async function parseSmartDumpWithAI(
         recurrenceDays = [1, 4];
       } else if (lower.includes('her gün') || lower.includes('günlük')) {
         recurrence = 'daily';
+      } else if (quick.recurrence !== 'none') {
+        recurrence = quick.recurrence;
+        recurrenceDays = quick.recurrenceDays;
       }
 
       let priority: TaskPriority = 'medium';
-      if (lower.includes('acil') || lower.includes('kritik')) priority = 'urgent';
-      else if (lower.includes('önemli') || lower.includes('yüksek')) priority = 'high';
+      if (lower.includes('acil') || lower.includes('kritik') || /\b(?:urgent|critical|asap)\b/.test(lower)) priority = 'urgent';
+      else if (lower.includes('önemli') || lower.includes('yüksek') || /\b(?:important|high priority)\b/.test(lower)) priority = 'high';
 
       // Detect "3 adet ...", "3 tane ..."
-      const countMatch = line.match(/\b([2-9])\s*(?:adet|tane|kez|defa)\b/i);
+      const countMatch = line.match(/\b([2-9])\s*(?:adet|tane|kez|defa|times|x)\b/i);
       const cleanBaseTitle = line
+        .replace(/ && /g, ' and ')
         .replace(/ & /g, ' ve ')
         .replace(/\bbu hafta\b/gi, '')
         .replace(/\bbu ay\b/gi, '')
         .replace(/\byarın\b/gi, '')
-        .replace(/\b([2-9])\s*(?:adet|tane|kez|defa)\b/gi, '')
+        .replace(/\b(?:this week|next week|this month|tomorrow)\b/gi, '')
+        .replace(/\b([2-9])\s*(?:adet|tane|kez|defa|times|x)\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
 
