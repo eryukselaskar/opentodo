@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // Apply the saved theme before first paint (avoids a light→dark flash).
+      // Dark is the default; only an explicit light choice (saved v2+) skips it.
+      var dark = true;
+      try {
+        var saved = JSON.parse(localStorage.getItem('todo-plus-storage-v3') || '{}');
+        if (saved && saved.version >= 2 && saved.state && saved.state.darkMode === false) {
+          dark = false;
+        }
+      } catch (e) {}
+      if (dark) document.documentElement.classList.add('dark');
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo Plus</title>
+  </head>
+  <body class="min-h-screen">
+    <div class="aurora" aria-hidden="true"><div></div></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

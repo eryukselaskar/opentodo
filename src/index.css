@@ -1,0 +1,264 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens. Tailwind's `stone-*` and `white` read these variables
+ * (tailwind.config.js), so dark mode only swaps the values below.
+ * Light = Tailwind's default stone palette ("warm paper").
+ * Dark  = neon / glass: near-black, inverted neutral scale, lime accent.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --c-white: 255 255 255;
+    --stone-50: 250 250 249;
+    --stone-100: 245 245 244;
+    --stone-200: 231 229 228;
+    --stone-300: 214 211 209;
+    --stone-400: 168 162 158;
+    --stone-500: 120 113 108;
+    --stone-600: 87 83 78;
+    --stone-700: 68 64 60;
+    --stone-800: 41 37 36;
+    --stone-900: 28 25 23;
+    --stone-950: 12 10 9;
+    --accent: 28 25 23;
+    --paper: 250 249 245;
+  }
+
+  html.dark {
+    color-scheme: dark;
+    --c-white: 17 17 20;
+    --stone-50: 22 22 26;
+    --stone-100: 30 30 35;
+    --stone-200: 42 42 48;
+    --stone-300: 60 60 68;
+    --stone-400: 113 113 122;
+    --stone-500: 145 145 155;
+    --stone-600: 172 172 182;
+    --stone-700: 210 210 218;
+    --stone-800: 232 232 238;
+    --stone-900: 244 244 247;
+    --stone-950: 250 250 252;
+    --accent: 198 255 61;
+    --paper: 8 8 8;
+  }
+
+  body {
+    @apply bg-[#FAF9F5] text-stone-900 antialiased selection:bg-stone-900 selection:text-[#FAF9F5] font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.dark body {
+    background-color: #080808;
+  }
+
+
+  html.dark ::selection {
+    background-color: rgb(var(--accent));
+    color: #080808;
+  }
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgb(var(--paper));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--stone-200));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--stone-300));
+  }
+}
+
+/* "animate-in" (tailwindcss-animate style) is used on toasts and panels; give it a real entrance */
+@keyframes todo-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-in {
+  animation: todo-enter 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark mode: neon / glass                                             */
+/* ------------------------------------------------------------------ */
+
+/* Aurora: slow drifting colour blobs behind everything (transform only) */
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -3%, 0) rotate(8deg) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-3%, 4%, 0) rotate(-6deg) scale(1.02);
+  }
+}
+
+/* <div class="aurora"><div></div></div> lives in index.html; the fixed outer box
+   clips the oversized, drifting inner layer so it never causes page scroll */
+.aurora {
+  display: none;
+}
+html.dark .aurora {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+html.dark .aurora > div {
+  position: absolute;
+  inset: -25%;
+  background:
+    radial-gradient(38% 32% at 18% 22%, rgba(198, 255, 61, 0.10), transparent 70%),
+    radial-gradient(34% 30% at 82% 18%, rgba(99, 102, 241, 0.14), transparent 70%),
+    radial-gradient(40% 36% at 70% 85%, rgba(236, 72, 153, 0.09), transparent 70%),
+    radial-gradient(30% 28% at 25% 80%, rgba(34, 211, 238, 0.08), transparent 70%);
+  filter: blur(40px);
+  animation: aurora-drift 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* Grain: SVG noise at low opacity for a tactile surface */
+html.dark body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.dark .aurora > div {
+    animation: none;
+  }
+}
+
+/* App shell lets the aurora show through; header and panels are frosted glass */
+html.dark .app-shell {
+  background-color: transparent;
+}
+html.dark .bg-\[\#FAF9F5\]\/90 {
+  background-color: rgba(8, 8, 8, 0.72);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+html.dark .bg-\[\#FAF9F5\]:not(.app-shell) {
+  background-color: rgba(14, 14, 17, 0.88);
+  backdrop-filter: blur(24px) saturate(150%);
+}
+
+/* Dialog backdrop: stone-900 is light in dark mode, so darken it explicitly */
+html.dark .bg-stone-900\/20 {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* Cards: translucent glass with a faint top highlight */
+html.dark .bg-white.rounded-xl,
+html.dark .bg-white.rounded-2xl,
+html.dark .bg-white.rounded-lg.border {
+  background-color: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 10px 30px -18px rgba(0, 0, 0, 0.9);
+}
+
+/* Iridescent edge on hover */
+html.dark .bg-white.rounded-xl:hover {
+  border-color: rgba(198, 255, 61, 0.28);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(99, 102, 241, 0.12),
+    0 12px 40px -18px rgba(198, 255, 61, 0.28);
+}
+
+/* Primary actions, active tabs, today markers → neon accent */
+html.dark .bg-stone-900:not(.undo-toast) {
+  background-color: rgb(var(--accent));
+  color: #0a0a0a;
+  box-shadow: 0 0 18px -4px rgba(198, 255, 61, 0.55);
+}
+html.dark .bg-stone-900:not(.undo-toast) :is(svg, .text-stone-50, .text-white, .text-stone-200) {
+  color: #0a0a0a;
+}
+html.dark button.bg-stone-900:hover {
+  filter: brightness(1.08);
+}
+html.dark .border-stone-900,
+html.dark .border-l-stone-900 {
+  border-color: rgb(var(--accent) / 0.75);
+}
+html.dark .ring-stone-900 {
+  --tw-ring-color: rgb(var(--accent) / 0.8);
+}
+html.dark .ring-stone-900\/10 {
+  --tw-ring-color: rgb(var(--accent) / 0.15);
+}
+
+/* Undo toast stays a neutral glass chip */
+html.dark .undo-toast {
+  background-color: rgba(30, 30, 35, 0.9);
+  color: rgb(var(--stone-900));
+  border: 1px solid rgb(var(--stone-300));
+  backdrop-filter: blur(16px);
+}
+html.dark .undo-toast button.undo-btn {
+  color: rgb(var(--accent));
+}
+
+/* Accent chips (time / recurrence / status) that otherwise stay light in dark mode */
+html.dark .bg-amber-50,
+html.dark .bg-amber-50\/60,
+html.dark .hover\:bg-amber-50:hover {
+  background-color: rgba(120, 83, 20, 0.22);
+}
+html.dark .bg-emerald-50 {
+  background-color: rgba(6, 95, 70, 0.25);
+}
+html.dark .bg-rose-50,
+html.dark .bg-rose-50\/60,
+html.dark .hover\:bg-rose-50:hover,
+html.dark .hover\:bg-rose-50\/60:hover {
+  background-color: rgba(136, 19, 55, 0.22);
+}
+html.dark .border-amber-200,
+html.dark .border-amber-200\/80 {
+  border-color: rgba(217, 160, 60, 0.35);
+}
+html.dark .border-emerald-200,
+html.dark .border-emerald-200\/80 {
+  border-color: rgba(52, 211, 153, 0.3);
+}
+html.dark .border-rose-200,
+html.dark .border-rose-200\/80 {
+  border-color: rgba(251, 113, 133, 0.3);
+}
+html.dark .text-amber-900,
+html.dark .text-amber-700 {
+  color: #f5d982;
+}
+html.dark .text-emerald-900,
+html.dark .text-emerald-800,
+html.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
+html.dark .text-rose-800 {
+  color: #fda4af;
+}
