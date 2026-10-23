@@ -94,7 +94,7 @@ export function BackupModal() {
     const link = document.createElement('a');
     const today = getTodayKey();
     link.href = url;
-    link.download = `todo-plus-backup-${today}.json`;
+    link.download = `opentodo-backup-${today}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

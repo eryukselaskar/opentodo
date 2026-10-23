@@ -12,6 +12,59 @@ function languageRule(): string {
 const DEFAULT_MODEL = 'gemma4:12b';
 let activeModelCache: string = DEFAULT_MODEL;
 
+/**
+ * Which AI the app talks to. 'ollama' = local Ollama (any installed model);
+ * 'openai' = any OpenAI-compatible API (OpenAI, OpenRouter, LM Studio, Groq ...).
+ * Empty model = pick automatically; empty baseUrl (ollama) = proxy / localhost:11434.
+ */
+export interface AiSettings {
+  provider: 'ollama' | 'openai';
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export const DEFAULT_AI_SETTINGS: AiSettings = { provider: 'ollama', baseUrl: '', apiKey: '', model: '' };
+
+let aiSettings: AiSettings = { ...DEFAULT_AI_SETTINGS };
+
+export function setAiSettings(next: AiSettings) {
+  aiSettings = { ...next };
+  if (next.model) activeModelCache = next.model;
+}
+
+function openAiBase(settings: AiSettings): string {
+  return (settings.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Model names the given connection offers (throws when it cannot be reached). */
+export async function listAiModels(settings: AiSettings = aiSettings): Promise<string[]> {
+  if (settings.provider === 'openai') {
+    const res = await fetchWithTimeout(
+      `${openAiBase(settings)}/models`,
+      { headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : undefined },
+      8000
+    );
+    const data = await res.json();
+    return ((data.data || []) as { id: string }[]).map((m) => m.id).sort();
+  }
+  const res = await fetchOllama('/api/tags', undefined, 3000, settings.baseUrl);
+  const data = await res.json();
+  return ((data.models || []) as { name: string }[]).map((m) => m.name);
+}
+
 /** Task object as returned by the model; every field is validated before use */
 interface RawModelTask {
   title?: unknown;
@@ -76,10 +129,13 @@ export function extractJsonBlock(raw: string): string {
 async function fetchOllama(
   endpoint: string,
   options?: RequestInit,
-  timeoutMs = 1500
+  timeoutMs = 1500,
+  baseUrl = aiSettings.baseUrl
 ): Promise<Response> {
   const isBrowser = typeof window !== 'undefined';
-  const endpoints = isBrowser
+  const endpoints = baseUrl
+    ? [`${baseUrl.replace(/\/+$/, '')}${endpoint}`]
+    : isBrowser
     ? [`/ollama${endpoint}`, `http://localhost:11434${endpoint}`]
     : [`http://localhost:11434${endpoint}`];
 
@@ -111,6 +167,16 @@ async function fetchOllama(
  * Check if Ollama is running and discover available models.
  */
 export async function checkOllamaStatus(): Promise<{ online: boolean; model: string }> {
+  if (aiSettings.provider === 'openai') {
+    try {
+      const models = await listAiModels();
+      const model = aiSettings.model || models[0] || '';
+      activeModelCache = model;
+      return { online: !!model, model };
+    } catch {
+      return { online: false, model: aiSettings.model };
+    }
+  }
   try {
     const res = await fetchOllama('/api/tags');
     const data = await res.json();
@@ -118,6 +184,7 @@ export async function checkOllamaStatus(): Promise<{ online: boolean; model: str
 
     // Find gemma4:12b, or any gemma model, or first available model
     const matched =
+      models.find((m) => m.name === aiSettings.model) ||
       models.find((m) => m.name === 'gemma4:12b') ||
       models.find((m) => m.name.toLowerCase().startsWith('gemma')) ||
       models[0];
@@ -134,6 +201,29 @@ export async function checkOllamaStatus(): Promise<{ online: boolean; model: str
  * Call Ollama /api/chat with think: false and stream: false for fast response.
  */
 async function callOllamaChat(systemPrompt: string, userPrompt: string): Promise<string> {
+  if (aiSettings.provider === 'openai') {
+    const res = await fetchWithTimeout(
+      `${openAiBase(aiSettings)}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(aiSettings.apiKey ? { Authorization: `Bearer ${aiSettings.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: aiSettings.model || activeModelCache,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.1,
+        }),
+      },
+      90000
+    );
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
   const payload = {
     model: activeModelCache || DEFAULT_MODEL,
     messages: [
@@ -183,7 +273,7 @@ export async function generateSubtasksWithAI(
   };
 
   try {
-    const systemPrompt = `Sen Todo Plus için Türkçe çalışan uzman bir görev ayrıştırma ve planlama asistanısın.
+    const systemPrompt = `Sen OpenTodo için Türkçe çalışan uzman bir görev ayrıştırma ve planlama asistanısın.
 Kullanıcının verdiği görevi 3 ila 5 adet somut, eyleme dönüştürülebilir kısa alt göreve (subtasks) böl.
 Toplam tahmini süreyi dakika cinsinden (15 ile 180 arasında bir sayı) ve önerilen önceliği ('low', 'medium', 'high', 'urgent') belirle.
 Cevabını SADECE geçerli JSON olarak ver:
@@ -627,7 +717,7 @@ export async function parseSmartDumpWithAI(
   };
 
   try {
-    const systemPrompt = `Sen Todo Plus için Türkçe serbest metin (Smart Dump) ayrıştırıcısı ve akıllı gün önericisisin.
+    const systemPrompt = `Sen OpenTodo için Türkçe serbest metin (Smart Dump) ayrıştırıcısı ve akıllı gün önericisisin.
 Takvim ve Günlük İş / Oyun-Eğlence / Sabit Rutin Durumu:
 ${calendarLines.join('\n')}
 - Bu hafta: ${context.currentWeekKey}, Bu ay: ${context.currentMonthKey}
@@ -822,7 +912,7 @@ export async function generateMilestoneTasksWithAI(
   };
 
   try {
-    const systemPrompt = `Sen Todo Plus için Türkçe çalışan aylık hedef ve kilometre taşı (Milestone) kırılım uzmanısın.
+    const systemPrompt = `Sen OpenTodo için Türkçe çalışan aylık hedef ve kilometre taşı (Milestone) kırılım uzmanısın.
 Verilen aylık hedefi 3 ila 4 adet somut, eyleme dökülebilir hafta veya ay görevine böl.
 Kurallar:
 - 'horizon': 'week' veya 'month'

@@ -4,8 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "electron/main.cjs",
-  "description": "Kişisel Gün / Hafta / Ay planlayıcı",
+  "description": "Free Day / Week / Month planner",
   "author": "Eryuksel",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -61,7 +62,7 @@
   },
   "build": {
     "appId": "com.todoplus.app",
-    "productName": "Todo Plus",
+    "productName": "OpenTodo",
     "directories": {
       "output": "release"
     },
@@ -72,6 +73,7 @@
     ],
     "win": {
       "target": "nsis",
+      "artifactName": "OpenTodo-Setup.${ext}",
       "icon": "electron/icon.png"
     },
     "nsis": {
@@ -79,7 +81,7 @@
       "perMachine": false,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Todo Plus"
+      "shortcutName": "OpenTodo"
     },
     "electronDist": "node_modules/electron/dist"
   }

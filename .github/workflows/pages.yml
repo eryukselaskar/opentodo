@@ -28,7 +28,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npx tsc && npx vite build --base=/${{ github.event.repository.name }}/
+      # Product page at the site root, the app itself under /app/
+      - run: npx tsc && npx vite build --base=/${{ github.event.repository.name }}/app/ --outDir dist/app
+      - run: cp -r site/. dist/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

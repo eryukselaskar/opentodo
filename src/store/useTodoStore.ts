@@ -24,6 +24,7 @@ import {
 } from '../lib/dateUtils';
 import { parseQuickTaskInput, hasExplicitHorizonToken } from '../lib/nlpParser';
 import { setLang, t, type Lang } from '../lib/i18n';
+import { setAiSettings, DEFAULT_AI_SETTINGS, type AiSettings } from '../lib/ollamaClient';
 import { PRESET_TAGS, normalizeTagName, isTagColor, type TagDef, type TagColor } from '../lib/tags';
 
 export type TimerMode = 'work' | 'short_break' | 'long_break';
@@ -57,6 +58,8 @@ export interface TodoStoreState {
   lastDeletedSeries: Task[];
   darkMode: boolean;
   language: Lang;
+  aiSettings: AiSettings;
+  aiSettingsOpen: boolean;
   createDrawerOpen: boolean;
   smartDumpOpen: boolean;
   remindersEnabled: boolean;
@@ -115,6 +118,8 @@ export interface TodoStoreState {
   tickTimer: () => { completedWorkSession: boolean; completedBreak: boolean };
   toggleDarkMode: () => void;
   setLanguage: (language: Lang) => void;
+  setAiSettings: (settings: AiSettings) => void;
+  setAiSettingsOpen: (open: boolean) => void;
   setCreateDrawerOpen: (open: boolean) => void;
   setSmartDumpOpen: (open: boolean) => void;
   /** Ends a running work session now and logs the elapsed minutes; returns minutes logged (0 if < 1 min) */
@@ -268,6 +273,8 @@ export const useTodoStore = create<TodoStoreState>()(
         lastDeletedSeries: [],
         darkMode: true,
         language: 'en',
+        aiSettings: { ...DEFAULT_AI_SETTINGS },
+        aiSettingsOpen: false,
         createDrawerOpen: false,
         smartDumpOpen: false,
         remindersEnabled: false,
@@ -1282,6 +1289,13 @@ export const useTodoStore = create<TodoStoreState>()(
           set({ language });
         },
 
+        setAiSettings: (aiSettings) => {
+          setAiSettings(aiSettings);
+          set({ aiSettings });
+        },
+
+        setAiSettingsOpen: (open) => set({ aiSettingsOpen: open }),
+
         setCreateDrawerOpen: (open) => set({ createDrawerOpen: open }),
         upsertTagDef: (rawName, color) => {
           const name = normalizeTagName(rawName);
@@ -1392,7 +1406,10 @@ export const useTodoStore = create<TodoStoreState>()(
         };
       }),
       onRehydrateStorage: () => (state) => {
-        if (state) setLang(state.language);
+        if (state) {
+          setLang(state.language);
+          setAiSettings({ ...DEFAULT_AI_SETTINGS, ...state.aiSettings });
+        }
       },
       partialize: (state) => ({
         tasks: state.tasks,
@@ -1400,6 +1417,7 @@ export const useTodoStore = create<TodoStoreState>()(
         focusLogs: state.focusLogs,
         darkMode: state.darkMode,
         language: state.language,
+        aiSettings: state.aiSettings,
         remindersEnabled: state.remindersEnabled,
         notifiedReminderKeys: state.notifiedReminderKeys,
         lastBackupAt: state.lastBackupAt,

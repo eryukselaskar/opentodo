@@ -504,7 +504,7 @@ export function CommandPalette() {
             </span>
           </div>
 
-          <div className="text-stone-400">Todo Plus</div>
+          <div className="text-stone-400">OpenTodo</div>
         </div>
       </DialogContent>
     </Dialog>

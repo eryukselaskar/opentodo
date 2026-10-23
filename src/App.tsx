@@ -10,6 +10,7 @@ import { CommandPalette } from './components/command/CommandPalette';
 import { RolloverBanner } from './components/command/RolloverBanner';
 import { BackupModal } from './components/command/BackupModal';
 import { TagManagerModal } from './components/command/TagManagerModal';
+import { AiSettingsModal } from './components/command/AiSettingsModal';
 import { TaskDetailDrawer } from './components/command/TaskDetailDrawer';
 import { DayView } from './components/views/DayView';
 // Views other than the day view load on first use to keep the initial bundle small
@@ -108,7 +109,7 @@ function PomodoroTicker({ onNotify }: { onNotify: (message: string) => void }) {
   }, [timerIsRunning, tickTimer, onNotify]);
 
   useEffect(() => {
-    document.title = timerIsRunning ? `⏳ ${formatTimer(timerSecondsLeft)} — Todo Plus` : 'Todo Plus';
+    document.title = timerIsRunning ? `⏳ ${formatTimer(timerSecondsLeft)} — OpenTodo` : 'OpenTodo';
   }, [timerIsRunning, timerSecondsLeft]);
 
   return null;
@@ -134,7 +135,7 @@ function ReminderScheduler({ onNotify }: { onNotify: (message: string) => void }
         if (!canNotify) break;
         try {
           const n = new Notification(`⏰ ${d.timeLabel} · ${splitTaskTimeAndTitle(d.task.title).cleanTitle}`, {
-            body: t('Todo Plus reminder', 'Todo Plus hatırlatması'),
+            body: t('OpenTodo reminder', 'OpenTodo hatırlatması'),
             tag: d.key,
           });
           // Clicking brings the app forward (desktop app: also out of the tray)
@@ -269,12 +270,14 @@ export default function App() {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // Check Ollama status on mount
+  // Check the AI connection on mount and whenever its settings change
+  const aiSettings = useTodoStore((s) => s.aiSettings);
+  const setAiSettingsOpen = useTodoStore((s) => s.setAiSettingsOpen);
   useEffect(() => {
     checkOllamaStatus().then((status) => {
       setOllamaStatus(status);
     });
-  }, []);
+  }, [aiSettings]);
 
   // Auto-dismiss undo snackbar after 6s
   useEffect(() => {
@@ -359,7 +362,7 @@ export default function App() {
           {/* Left: Brand title & Date */}
           <div className="flex items-center gap-3 shrink-0">
             <span className="font-semibold tracking-tight text-stone-900 text-base">
-              Todo Plus
+              OpenTodo
             </span>
             <span className="text-xs text-stone-400 hidden sm:inline">
               {formatTurkishDate(todayKey)}
@@ -371,10 +374,12 @@ export default function App() {
 
           {/* Right: AI Status, Theme Toggle, Search & Backup Actions */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Ollama Live Status Pill */}
-            <div
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border border-stone-200 bg-white shadow-2xs select-none"
-              title={ollamaStatus.online ? t(`Ollama online (${ollamaStatus.model})`, `Ollama Aktif (${ollamaStatus.model})`) : t('Ollama offline', 'Ollama Çevrimdışı')}
+            {/* AI status: click to choose the AI connection */}
+            <button
+              type="button"
+              onClick={() => setAiSettingsOpen(true)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border border-stone-200 bg-white shadow-2xs select-none cursor-pointer hover:bg-stone-50"
+              title={ollamaStatus.online ? t(`AI connected (${ollamaStatus.model}) — click to change`, `AI bağlı (${ollamaStatus.model}) — değiştirmek için tıklayın`) : t('AI offline — click to connect', 'AI çevrimdışı — bağlamak için tıklayın')}
             >
               <span
                 className={cn(
@@ -385,7 +390,7 @@ export default function App() {
               <span className="text-stone-600 hidden md:inline truncate max-w-[130px]">
                 {ollamaStatus.online ? `AI: ${ollamaStatus.model}` : t('AI: Offline', 'AI: Çevrimdışı')}
               </span>
-            </div>
+            </button>
 
             {/* Reminders Toggle */}
             <button
@@ -650,6 +655,7 @@ export default function App() {
       <CommandPalette />
       <BackupModal />
       <TagManagerModal />
+      <AiSettingsModal />
       <TaskDetailDrawer />
     </div>
   );

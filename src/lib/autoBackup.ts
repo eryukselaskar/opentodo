@@ -82,7 +82,7 @@ export async function chooseBackupFile(): Promise<BackupFileHandle> {
   const picker = (window as unknown as { showSaveFilePicker: SaveFilePicker }).showSaveFilePicker;
   const handle = await picker({
     suggestedName: 'todo-plus-yedek.json',
-    types: [{ description: t('Todo Plus backup', 'Todo Plus yedeği'), accept: { 'application/json': ['.json'] } }],
+    types: [{ description: t('OpenTodo backup', 'OpenTodo yedeği'), accept: { 'application/json': ['.json'] } }],
   });
   await idbRequest('readwrite', (s) => s.put(handle, HANDLE_KEY));
   window.dispatchEvent(new Event(BACKUP_HANDLE_EVENT));

@@ -1,4 +1,4 @@
-// Todo Plus desktop shell: serves the built app (dist/) from app://todo-plus
+// OpenTodo desktop shell: serves the built app (dist/) from app://todo-plus
 // so the data (localStorage) always lives under the same, fixed origin.
 // Closing the window keeps the app running in the tray so reminders still fire.
 const { app, BrowserWindow, Menu, Notification, Tray, ipcMain, protocol, net, shell, session } = require('electron');
@@ -14,6 +14,13 @@ const STARTED_HIDDEN = process.argv.includes('--hidden');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
+
+// Keep the data folder from the Todo Plus days (%APPDATA%\todo-plus) whatever the app is called
+app.setPath('userData', path.join(app.getPath('appData'), 'todo-plus'));
+
+// Tray / notification texts follow the system language
+const TR = () => app.getLocale().toLowerCase().startsWith('tr');
+const L = (en, tr) => (TR() ? tr : en);
 
 // One instance only: opening the app again shows the running one
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -51,7 +58,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: !STARTED_HIDDEN,
-    title: 'Todo Plus',
+    title: 'OpenTodo',
     icon: ICON,
     backgroundColor: '#080808',
     autoHideMenuBar: true,
@@ -78,8 +85,11 @@ function createWindow() {
     if (!readSettings().trayHintShown) {
       writeSettings({ trayHintShown: true });
       new Notification({
-        title: 'Todo Plus arka planda çalışıyor',
-        body: 'Hatırlatmalar gelmeye devam edecek. Tamamen kapatmak için tepsideki simgeye sağ tıklayıp "Çık" deyin.',
+        title: L('OpenTodo is still running', 'OpenTodo arka planda çalışıyor'),
+        body: L(
+          'Reminders keep coming. To quit completely, right-click the tray icon and choose "Quit".',
+          'Hatırlatmalar gelmeye devam edecek. Tamamen kapatmak için tepsideki simgeye sağ tıklayıp "Çık" deyin.'
+        ),
         icon: ICON,
       }).show();
     }
@@ -95,10 +105,10 @@ function setAutoStart(on) {
 function buildTrayMenu() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Todo Plus’ı aç', click: showWindow },
+      { label: L('Open OpenTodo', 'OpenTodo’yu aç'), click: showWindow },
       { type: 'separator' },
       {
-        label: 'Windows açılışında başlat',
+        label: L('Start with Windows', 'Windows açılışında başlat'),
         type: 'checkbox',
         checked: autoStartEnabled(),
         enabled: app.isPackaged,
@@ -108,14 +118,14 @@ function buildTrayMenu() {
         },
       },
       { type: 'separator' },
-      { label: 'Çık', click: () => app.quit() },
+      { label: L('Quit', 'Çık'), click: () => app.quit() },
     ])
   );
 }
 
 function createTray() {
   tray = new Tray(ICON);
-  tray.setToolTip('Todo Plus');
+  tray.setToolTip('OpenTodo');
   tray.on('click', showWindow);
   buildTrayMenu();
 }

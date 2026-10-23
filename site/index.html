@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenTodo — Free Day / Week / Month planner</title>
+  <meta name="description" content="OpenTodo is a free, open-source planner for your day, week and month. No account, no cloud. Bring your own AI." />
+  <meta property="og:title" content="OpenTodo — Free Day / Week / Month planner" />
+  <meta property="og:description" content="Plan your day, week and month. Free, open source, private. Bring your own AI." />
+  <meta property="og:image" content="assets/day.webp" />
+  <link rel="icon" type="image/png" href="assets/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #080808;
+      --ink: #f4f4f7;
+      --muted: #9a9aa5;
+      --line: rgba(255, 255, 255, 0.08);
+      --glass: rgba(255, 255, 255, 0.04);
+      --accent: #c6ff3d;
+      --accent-ink: #0a0a0a;
+      --mx: 50%;
+      --my: 50%;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+
+    /* Aurora + grain */
+    .aurora { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+    .aurora span {
+      position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%;
+      filter: blur(90px); opacity: 0.32; will-change: transform;
+      animation: drift 26s ease-in-out infinite alternate;
+    }
+    .aurora span:nth-child(1) { background: #6b8f00; top: -25vmax; left: -15vmax; }
+    .aurora span:nth-child(2) { background: #3b2a8f; top: 10vmax; right: -25vmax; animation-delay: -8s; }
+    .aurora span:nth-child(3) { background: #0f5f5a; bottom: -30vmax; left: 20vmax; animation-delay: -16s; opacity: 0.22; }
+    @keyframes drift {
+      from { transform: translate3d(0, 0, 0) scale(1); }
+      to { transform: translate3d(6vmax, 4vmax, 0) scale(1.15); }
+    }
+    .grain {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .wrap { width: min(1180px, 100% - 32px); margin: 0 auto; }
+
+    /* Nav */
+    nav {
+      position: sticky; top: 0; z-index: 20;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      background: rgba(8, 8, 8, 0.6); border-bottom: 1px solid var(--line);
+    }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .brand img { width: 26px; height: 26px; border-radius: 7px; }
+    .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; color: var(--muted); }
+    .nav-links a:hover { color: var(--ink); }
+    .lang {
+      font: 600 12px 'JetBrains Mono', monospace; color: var(--ink);
+      border: 1px solid var(--line); background: var(--glass); border-radius: 8px;
+      padding: 6px 9px; cursor: pointer; transition: transform 0.15s ease, border-color 0.2s;
+    }
+    .lang:hover { border-color: rgba(198, 255, 61, 0.5); }
+    .lang:active { transform: scale(0.94); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px;
+      padding: 15px 24px; border-radius: 14px; cursor: pointer; border: 1px solid transparent;
+      transition: transform 0.2s cubic-bezier(.2,.8,.2,1), box-shadow 0.25s, background 0.2s;
+      transform: translate3d(var(--tx, 0), var(--ty, 0), 0);
+      will-change: transform;
+    }
+    .btn:active { transform: translate3d(var(--tx, 0), var(--ty, 0), 0) scale(0.96); }
+    .btn svg { width: 18px; height: 18px; }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 34px -8px rgba(198, 255, 61, 0.7); }
+    .btn-primary:hover { box-shadow: 0 0 50px -6px rgba(198, 255, 61, 0.9); }
+    .btn-ghost { background: var(--glass); border-color: var(--line); color: var(--ink); backdrop-filter: blur(12px); }
+    .btn-ghost:hover { border-color: rgba(255, 255, 255, 0.25); }
+
+    /* Hero */
+    .hero { padding: 96px 0 40px; text-align: center; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);
+      border: 1px solid var(--line); background: var(--glass); padding: 7px 14px; border-radius: 999px;
+    }
+    .pill b { color: var(--accent); font-weight: 600; }
+    h1 {
+      font-size: clamp(52px, 10.5vw, 156px); line-height: 0.92; letter-spacing: -0.055em; font-weight: 700;
+      margin: 26px auto 24px; max-width: 12ch;
+    }
+    .grad {
+      background: linear-gradient(100deg, #f4f4f7 10%, var(--accent) 45%, #7cf5e1 70%, #f4f4f7 95%);
+      background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+      animation: shine 8s linear infinite;
+    }
+    @keyframes shine { to { background-position: -220% 0; } }
+    .lede { font-size: clamp(17px, 2vw, 21px); color: var(--muted); max-width: 640px; margin: 0 auto 36px; }
+    .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .fine { margin-top: 16px; font-size: 13px; color: var(--muted); }
+
+    /* Screenshot stage */
+    .stage { perspective: 1600px; margin: 72px auto 0; max-width: 1080px; }
+    .shot {
+      position: relative; border-radius: 18px; overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 40px 120px -30px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(198, 255, 61, 0.08), 0 30px 90px -40px rgba(198, 255, 61, 0.35);
+      transform: rotateX(var(--rx, 8deg)) rotateY(var(--ry, 0deg));
+      transition: transform 0.25s ease-out;
+      transform-style: preserve-3d; will-change: transform;
+    }
+    .shot::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(600px circle at var(--mx) var(--my), rgba(255, 255, 255, 0.08), transparent 40%);
+    }
+
+    section { padding: 110px 0 0; }
+    .eyebrow { font: 500 12px 'JetBrains Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+    h2 { font-size: clamp(34px, 5vw, 64px); line-height: 1; letter-spacing: -0.04em; margin: 14px 0 18px; font-weight: 700; }
+    .sub { color: var(--muted); max-width: 620px; font-size: 18px; }
+
+    /* Bento */
+    .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 48px; }
+    .card {
+      position: relative; grid-column: span 2; padding: 26px; border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+      border: 1px solid var(--line); overflow: hidden; backdrop-filter: blur(14px);
+      transition: transform 0.3s cubic-bezier(.2,.8,.2,1), border-color 0.3s;
+    }
+    .card:hover { transform: translateY(-4px); border-color: rgba(198, 255, 61, 0.35); }
+    .card::before {
+      content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+      background: linear-gradient(120deg, transparent 30%, rgba(198,255,61,0.5), rgba(124,245,225,0.5), rgba(160,120,255,0.5), transparent 70%);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .card:hover::before { opacity: 1; }
+    .card.wide { grid-column: span 4; }
+    .card.tall { grid-row: span 2; }
+    .card h3 { font-size: 21px; letter-spacing: -0.02em; margin: 14px 0 8px; }
+    .card p { color: var(--muted); font-size: 15px; }
+    .ico {
+      width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      background: rgba(198, 255, 61, 0.1); color: var(--accent); border: 1px solid rgba(198, 255, 61, 0.25);
+    }
+    .ico svg { width: 20px; height: 20px; }
+    .card img.mini { margin-top: 20px; border-radius: 12px; border: 1px solid var(--line); }
+    .tokens { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .tokens code {
+      font: 500 13px 'JetBrains Mono', monospace; padding: 6px 10px; border-radius: 8px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--line); color: var(--ink);
+    }
+    .tokens code b { color: var(--accent); font-weight: 500; }
+
+    /* Gallery */
+    .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+    .gallery figure { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--glass); }
+    .gallery figcaption { padding: 12px 16px; font-size: 14px; color: var(--muted); }
+    .gallery img { transition: transform 0.6s cubic-bezier(.2,.8,.2,1); }
+    .gallery figure:hover img { transform: scale(1.04); }
+
+    /* AI steps */
+    .ai { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; }
+    .steps { list-style: none; display: grid; gap: 14px; margin-top: 28px; }
+    .steps li { display: flex; gap: 14px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass); }
+    .steps .n { font: 600 13px 'JetBrains Mono', monospace; color: var(--accent-ink); background: var(--accent); width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+    .steps p { color: var(--muted); font-size: 15px; }
+    .steps strong { color: var(--ink); display: block; font-weight: 600; }
+    .providers { display: flex; flex-wrap: wrap; gap: 10px; }
+    .providers span { padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass); font-weight: 600; }
+
+    /* Download */
+    .download { text-align: center; padding: 110px 0; }
+    .dl-box {
+      margin-top: 40px; padding: 48px 24px; border-radius: 28px; border: 1px solid rgba(198, 255, 61, 0.25);
+      background: radial-gradient(800px 300px at 50% 0%, rgba(198, 255, 61, 0.12), transparent 70%), rgba(255,255,255,0.03);
+    }
+    .dl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 760px; margin: 0 auto; text-align: left; }
+    .dl-card { padding: 24px; border-radius: 18px; border: 1px solid var(--line); background: rgba(8,8,8,0.5); }
+    .dl-card h3 { font-size: 20px; margin-bottom: 6px; }
+    .dl-card p { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+
+    footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    footer a:hover { color: var(--ink); }
+
+    /* Reveal */
+    .reveal { opacity: 0; transform: translateY(28px) scale(0.98); transition: opacity 0.8s ease, transform 0.8s cubic-bezier(.2,.8,.2,1); }
+    .reveal.in { opacity: 1; transform: none; }
+
+    @media (max-width: 900px) {
+      .bento { grid-template-columns: 1fr 1fr; }
+      .card, .card.wide { grid-column: span 2; }
+      .card.tall { grid-row: auto; }
+      .gallery { grid-template-columns: 1fr; }
+      .ai, .dl-grid { grid-template-columns: 1fr; }
+      .nav-links a.hide-sm { display: none; }
+      .hero { padding-top: 64px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+      .shot { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="#"><img src="assets/icon.png" alt="" />OpenTodo</a>
+      <div class="nav-links">
+        <a class="hide-sm" href="#features" data-tr="Özellikler">Features</a>
+        <a class="hide-sm" href="#ai" data-tr="AI">AI</a>
+        <a class="hide-sm" href="#download" data-tr="İndir">Download</a>
+        <a href="https://github.com/eryukselaskar/opentodo" target="_blank" rel="noopener">GitHub</a>
+        <button class="lang" id="lang" type="button" aria-label="Language">TR</button>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero wrap">
+    <span class="pill reveal"><b>●</b> <span data-tr="Ücretsiz · Açık kaynak · Hesap yok">Free · Open source · No account</span></span>
+    <h1 class="reveal"><span data-tr="Gününü, haftanı, ayını">Plan your</span> <span class="grad" data-tr="planla.">day, week &amp; month.</span></h1>
+    <p class="lede reveal" data-tr="OpenTodo; günlük işlerini, haftalık hedeflerini ve aylık planlarını tek yerde toplayan ücretsiz bir planlayıcı. Verilerin cihazında kalır, istersen kendi yapay zekânı bağlarsın.">
+      OpenTodo is a free planner that keeps your daily tasks, weekly goals and monthly plans in one calm place.
+      Your data stays on your device — and you can plug in your own AI.
+    </p>
+    <div class="cta reveal">
+      <a class="btn btn-primary magnetic" href="https://github.com/eryukselaskar/opentodo/releases/latest/download/OpenTodo-Setup.exe">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span data-tr="Windows için indir">Download for Windows</span>
+      </a>
+      <a class="btn btn-ghost magnetic" href="app/">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+        <span data-tr="Tarayıcıda hemen kullan">Use it in the browser</span>
+      </a>
+    </div>
+    <p class="fine reveal" data-tr="Windows 10 / 11 · MIT lisansı · Kurulum gerektirmeyen web sürümü">Windows 10 / 11 · MIT license · Web version needs no install</p>
+
+    <div class="stage reveal">
+      <div class="shot" id="shot"><img src="assets/day.webp" width="1440" height="900" alt="OpenTodo day view" /></div>
+    </div>
+  </header>
+
+  <section id="features" class="wrap">
+    <div class="reveal">
+      <p class="eyebrow" data-tr="Özellikler">Features</p>
+      <h2 data-tr="Sade görünür, çok iş yapar.">Looks simple. Does a lot.</h2>
+      <p class="sub" data-tr="Gün, hafta ve ay arasında rahatça geç; rutinlerini takip et, odaklan ve ilerlemeni gör.">Move between your day, week and month; keep routines going, focus, and watch your progress.</p>
+    </div>
+
+    <div class="bento">
+      <article class="card wide reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></div>
+        <h3 data-tr="Gün · Hafta · Ay">Day · Week · Month</h3>
+        <p data-tr="Bugünün listesi, haftalık havuz ve aylık hedefler. Bir görevi tek tıkla güne, haftaya ya da aya taşı; &quot;Haftamı dengele&quot; işleri en boş günlere dağıtsın.">Today's list, a weekly pool and monthly goals. Move a task to a day, week or month in one click — "Balance my week" spreads work over your freest days.</p>
+        <img class="mini" src="assets/week.webp" alt="" loading="lazy" />
+      </article>
+      <article class="card tall reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></div>
+        <h3 data-tr="Rutinler ve seriler">Routines &amp; streaks</h3>
+        <p data-tr="Her gün, her hafta, her ay ya da seçtiğin günlerde tekrar eden görevler. Son 30 günün takvimi ve kesintisiz serilerle alışkanlıklarını gör.">Daily, weekly, monthly or chosen-weekday tasks. A 30-day calendar and streaks show how your habits are going.</p>
+        <img class="mini" src="assets/analytics.webp" alt="" loading="lazy" />
+      </article>
+      <article class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></div>
+        <h3 data-tr="Odak zamanlayıcı">Focus timer</h3>
+        <p data-tr="Pomodoro sayacı bir göreve bağlanır, süreyi kaydeder ve alt adımları yanında tutar.">A Pomodoro timer tied to a task — it logs the time and keeps the subtasks next to you.</p>
+      </article>
+      <article class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg></div>
+        <h3 data-tr="Yazarak ekle">Type to add</h3>
+        <p data-tr="Tek satırda saat, süre, etiket ve tekrar:">Time, length, tag and repeat in one line:</p>
+        <div class="tokens"><code><b>14:00</b> call <b>#work</b> <b>~30m</b></code><code><b>@tomorrow</b></code><code><b>%daily</b></code><code><b>!urgent</b></code></div>
+      </article>
+      <article class="card wide reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3 data-tr="Gizli kalır">Private by default</h3>
+        <p data-tr="Hesap yok, sunucu yok. Her şey cihazında saklanır. JSON yedeği al, istersen otomatik yedek dosyası seç.">No account, no server. Everything is stored on your device. Export a JSON backup or pick a file for automatic backups.</p>
+      </article>
+      <article class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
+        <h3 data-tr="Analitik">Analytics</h3>
+        <p data-tr="Tamamlama oranları, 28 günlük ısı haritası, etiket ve öncelik dağılımı.">Completion rates, a 28-day heatmap, tag and priority breakdowns.</p>
+      </article>
+      <article class="card wide reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
+        <h3 data-tr="Masaüstü uygulaması">A real desktop app</h3>
+        <p data-tr="Sistem tepsisinde sessizce çalışır, saatli görevler için hatırlatma gönderir, istersen Windows ile birlikte açılır.">Runs quietly in the tray, sends reminders for timed tasks and can start with Windows.</p>
+      </article>
+      <article class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+        <h3 data-tr="İki dil">Two languages</h3>
+        <p data-tr="İngilizce ve Türkçe; tek tıkla geç. Tarihler ve gün adları da dile uyar.">English and Turkish, one click apart. Dates and day names follow along.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="reveal">
+      <p class="eyebrow" data-tr="Ekranlar">Screens</p>
+      <h2 data-tr="Bir bak.">Take a look.</h2>
+    </div>
+    <div class="gallery">
+      <figure class="reveal"><img src="assets/kanban.webp" alt="" loading="lazy" /><figcaption data-tr="Kanban panosu">Kanban board</figcaption></figure>
+      <figure class="reveal"><img src="assets/focus.webp" alt="" loading="lazy" /><figcaption data-tr="Odak zamanlayıcı">Focus timer</figcaption></figure>
+      <figure class="reveal"><img src="assets/analytics.webp" alt="" loading="lazy" /><figcaption data-tr="Analitik">Analytics</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="ai" class="wrap ai">
+    <div class="reveal">
+      <p class="eyebrow" data-tr="Kendi yapay zekânı getir">Bring your own AI</p>
+      <h2 data-tr="İstediğin modeli bağla.">Connect any model you like.</h2>
+      <p class="sub" data-tr="Yapay zekâ isteğe bağlı: görevi alt adımlara böler, serbest yazdığın notu görevlere ayırır ve aylık hedefleri planlar. Olmadan da her şey çalışır.">AI is optional: it splits tasks into steps, turns a free-text note into tasks and breaks down monthly goals. Everything works without it.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><p><strong data-tr="Üstteki &quot;AI&quot; etiketine tıkla">Click the "AI" badge in the header</strong><span data-tr="Ayar penceresi açılır.">The settings window opens.</span></p></li>
+        <li><span class="n">2</span><p><strong data-tr="Ollama ya da OpenAI uyumlu bir servis seç">Pick Ollama or an OpenAI-compatible service</strong><span data-tr="Gerekirse adresi ve API anahtarını gir.">Enter an address and API key if needed.</span></p></li>
+        <li><span class="n">3</span><p><strong data-tr="&quot;Test et&quot;e bas, modelini seç">Press "Test", choose your model</strong><span data-tr="Gemma, Llama, Qwen, GPT… hangisini istersen.">Gemma, Llama, Qwen, GPT… whichever you prefer.</span></p></li>
+      </ol>
+    </div>
+    <div class="providers reveal">
+      <span>Ollama</span><span>OpenAI</span><span>OpenRouter</span><span>LM Studio</span><span>Groq</span><span data-tr="ve OpenAI uyumlu her şey">and anything OpenAI-compatible</span>
+    </div>
+  </section>
+
+  <section id="download" class="wrap download">
+    <div class="reveal">
+      <p class="eyebrow" data-tr="Başla">Get started</p>
+      <h2 data-tr="Ücretsiz. Sonsuza kadar.">Free. For good.</h2>
+      <p class="sub" style="margin: 0 auto" data-tr="Reklam yok, abonelik yok, kayıt yok. İndir ya da hemen tarayıcıda başla.">No ads, no subscription, no sign-up. Download it or start right away in your browser.</p>
+    </div>
+    <div class="dl-box reveal">
+      <div class="dl-grid">
+        <div class="dl-card">
+          <h3 data-tr="Windows uygulaması">Windows app</h3>
+          <p data-tr="Tepside çalışır, hatırlatma gönderir, AI'yı yerelde bağlar. Windows uyarı verirse &quot;Ek bilgi → Yine de çalıştır&quot; deyin (uygulama imzasız).">Lives in the tray, sends reminders, connects to local AI. If Windows warns you, choose "More info → Run anyway" (the app is unsigned).</p>
+          <a class="btn btn-primary magnetic" href="https://github.com/eryukselaskar/opentodo/releases/latest/download/OpenTodo-Setup.exe">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span data-tr="İndir (.exe)">Download (.exe)</span>
+          </a>
+        </div>
+        <div class="dl-card">
+          <h3 data-tr="Web sürümü">Web version</h3>
+          <p data-tr="Kurulum yok. Veriler bu tarayıcıda saklanır; masaüstüne geçerken Yedek → dışa aktar / içe aktar.">Nothing to install. Data is kept in this browser; moving to the desktop app? Backup → export / import.</p>
+          <a class="btn btn-ghost magnetic" href="app/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 5 7 7-7 7"/></svg>
+            <span data-tr="Hemen kullan">Open the app</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 OpenTodo · <span data-tr="MIT lisansı">MIT license</span></span>
+      <span><a href="https://github.com/eryukselaskar/opentodo" target="_blank" rel="noopener" data-tr="GitHub'da kaynak kodu">Source on GitHub</a> · <a href="https://github.com/eryukselaskar/opentodo/releases" target="_blank" rel="noopener" data-tr="Sürümler">Releases</a></span>
+    </div>
+  </footer>
+
+  <script>
+    // Language: English by default, TR on demand (remembered)
+    (function () {
+      var nodes = document.querySelectorAll('[data-tr]');
+      nodes.forEach(function (n) { n.setAttribute('data-en', n.innerHTML); });
+      var btn = document.getElementById('lang');
+      function apply(lang) {
+        nodes.forEach(function (n) { n.innerHTML = n.getAttribute(lang === 'tr' ? 'data-tr' : 'data-en'); });
+        document.documentElement.lang = lang;
+        btn.textContent = lang === 'tr' ? 'EN' : 'TR';
+        document.title = lang === 'tr' ? 'OpenTodo — Ücretsiz Gün / Hafta / Ay planlayıcı' : 'OpenTodo — Free Day / Week / Month planner';
+        try { localStorage.setItem('opentodo-site-lang', lang); } catch (e) {}
+      }
+      var saved = null;
+      try { saved = localStorage.getItem('opentodo-site-lang'); } catch (e) {}
+      var current = saved === 'tr' ? 'tr' : 'en';
+      if (current === 'tr') apply('tr');
+      btn.addEventListener('click', function () { current = current === 'tr' ? 'en' : 'tr'; apply(current); });
+    })();
+
+    // Scroll reveal
+    (function () {
+      var items = document.querySelectorAll('.reveal');
+      if (!('IntersectionObserver' in window)) { items.forEach(function (i) { i.classList.add('in'); }); return; }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+      }, { threshold: 0.12 });
+      items.forEach(function (i, idx) { i.style.transitionDelay = (idx % 4) * 60 + 'ms'; io.observe(i); });
+    })();
+
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var fine = window.matchMedia('(pointer: fine)').matches;
+
+    // Hero screenshot tilts toward the cursor
+    (function () {
+      var shot = document.getElementById('shot');
+      if (reduce || !fine) return;
+      window.addEventListener('mousemove', function (e) {
+        var r = shot.getBoundingClientRect();
+        var x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+        shot.style.setProperty('--ry', ((x - 0.5) * 8).toFixed(2) + 'deg');
+        shot.style.setProperty('--rx', (6 - (y - 0.5) * 6).toFixed(2) + 'deg');
+        shot.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+        shot.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+      });
+    })();
+
+    // Magnetic buttons
+    (function () {
+      if (reduce || !fine) return;
+      document.querySelectorAll('.magnetic').forEach(function (b) {
+        b.addEventListener('mousemove', function (e) {
+          var r = b.getBoundingClientRect();
+          b.style.setProperty('--tx', ((e.clientX - r.left - r.width / 2) * 0.18).toFixed(1) + 'px');
+          b.style.setProperty('--ty', ((e.clientY - r.top - r.height / 2) * 0.25).toFixed(1) + 'px');
+        });
+        b.addEventListener('mouseleave', function () { b.style.setProperty('--tx', '0px'); b.style.setProperty('--ty', '0px'); });
+      });
+    })();
+  </script>
+</body>
+</html>

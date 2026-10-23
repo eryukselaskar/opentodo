@@ -504,7 +504,7 @@ export function FocusView() {
 
           <div className="flex items-center gap-3 text-xs text-stone-500">
             <span>
-              Toplam Seans: <strong className="text-stone-900">{todayLogs.length}</strong>
+              {tt('Sessions:', 'Toplam Seans:')} <strong className="text-stone-900">{todayLogs.length}</strong>
             </span>
             <span className="text-stone-300">|</span>
             <span>
